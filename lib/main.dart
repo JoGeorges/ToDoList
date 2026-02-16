@@ -11,13 +11,55 @@ class MainApp extends StatelessWidget{
   Widget build(BuildContext context){
      return MaterialApp(
       debugShowCheckedModeBanner:false,
-      home: HomeScreen(),
+      home: SplashScreen(),
   );
   }
 }
 
-//HomeScreenStructure
+//SplashScreenStructure
+// ===== SPLASH SCREEN =====
+class SplashScreen extends StatefulWidget {
+  @override
+  _SplashScreenState createState() => _SplashScreenState();
+}
 
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    
+    // Attend 3 secondes puis va à HomeScreen
+    Future.delayed(Duration(seconds: 3), () {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => HomeScreen()),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.blue,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_task, size: 100, color: Colors.white),
+            SizedBox(height: 20),
+            Text('My To do List', 
+              style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 40),
+            CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+//HomeScreenStructure
 class HomeScreen extends StatefulWidget{
   @override
   State<HomeScreen> createState() => _HomeScreenState();
