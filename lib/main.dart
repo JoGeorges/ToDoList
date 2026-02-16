@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:date_time_picker/date_time_picker.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(MainApp());
 }
 
-class MyApp extends StatelessWidget {
-  MyApp({super.key});
+class MainApp extends StatelessWidget {
+  MainApp({super.key});
 
   final Map<String, String> userDatabase = {};
 
@@ -69,16 +70,12 @@ class _SignUpState extends State<SignUpScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Registration successful.'),
+          content: Text('Registration successful! Please sign in.'),
           backgroundColor: Colors.green,
         ),
       );
 
-      _firstNameController.clear();
-      _lastNameController.clear();
-      _emailController.clear();
-      _passwordController.clear();
-      _confirmPasswordController.clear();
+      Navigator.pop(context);
     }
   }
 
@@ -88,7 +85,7 @@ class _SignUpState extends State<SignUpScreen> {
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF4A90E2), Color(0xFF6A5AE0)],
+            colors: [const Color(0xFF4A90E2), const Color(0xFF6A5AE0)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -96,8 +93,8 @@ class _SignUpState extends State<SignUpScreen> {
         child: Center(
           child: SingleChildScrollView(
             child: Container(
-              margin: EdgeInsets.symmetric(horizontal: 25),
-              padding: EdgeInsets.all(30),
+              margin: const EdgeInsets.symmetric(horizontal: 25),
+              padding: const EdgeInsets.all(30),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(25),
@@ -105,7 +102,7 @@ class _SignUpState extends State<SignUpScreen> {
                   BoxShadow(
                     color: Colors.black26,
                     blurRadius: 20,
-                    offset: Offset(0, 10),
+                    offset: const Offset(0, 10),
                   )
                 ],
               ),
@@ -114,19 +111,19 @@ class _SignUpState extends State<SignUpScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
+                    const Text(
                       "Create Account",
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 30),
+                    const SizedBox(height: 30),
                     TextFormField(
                       controller: _firstNameController,
                       decoration: InputDecoration(
                         hintText: "First Name",
-                        prefixIcon: Icon(Icons.person_outline),
+                        prefixIcon: const Icon(Icons.person_outline),
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
@@ -141,12 +138,12 @@ class _SignUpState extends State<SignUpScreen> {
                         return null;
                       },
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     TextFormField(
                       controller: _lastNameController,
                       decoration: InputDecoration(
                         hintText: "Last Name",
-                        prefixIcon: Icon(Icons.person_outline),
+                        prefixIcon: const Icon(Icons.person_outline),
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
@@ -161,12 +158,12 @@ class _SignUpState extends State<SignUpScreen> {
                         return null;
                       },
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     TextFormField(
                       controller: _emailController,
                       decoration: InputDecoration(
                         hintText: "Email",
-                        prefixIcon: Icon(Icons.email_outlined),
+                        prefixIcon: const Icon(Icons.email_outlined),
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
@@ -185,13 +182,13 @@ class _SignUpState extends State<SignUpScreen> {
                         return null;
                       },
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
                       decoration: InputDecoration(
                         hintText: "Password",
-                        prefixIcon: Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.lock_outline),
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
@@ -209,13 +206,13 @@ class _SignUpState extends State<SignUpScreen> {
                         return null;
                       },
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     TextFormField(
                       controller: _confirmPasswordController,
                       obscureText: true,
                       decoration: InputDecoration(
                         hintText: "Confirm Password",
-                        prefixIcon: Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.lock_outline),
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
@@ -233,13 +230,13 @@ class _SignUpState extends State<SignUpScreen> {
                         return null;
                       },
                     ),
-                    SizedBox(height: 30),
+                    const SizedBox(height: 30),
                     Container(
                       width: double.infinity,
                       height: 55,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Color(0xFF4A90E2), Color(0xFF6A5AE0)],
+                          colors: [const Color(0xFF4A90E2), const Color(0xFF6A5AE0)],
                         ),
                         borderRadius: BorderRadius.circular(15),
                       ),
@@ -252,13 +249,13 @@ class _SignUpState extends State<SignUpScreen> {
                             borderRadius: BorderRadius.circular(15),
                           ),
                         ),
-                        child: Text(
+                        child: const Text(
                           "SIGN UP",
                           style: TextStyle(fontSize: 16),
                         ),
                       ),
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     TextButton(
                       onPressed: () {
                         Navigator.pop(context);
@@ -315,8 +312,12 @@ class _SignInState extends State<SignInScreen> {
             ),
           );
           
-          _emailController.clear();
-          _passwordController.clear();
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const HomeScreen(),
+            ),
+          );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -342,7 +343,7 @@ class _SignInState extends State<SignInScreen> {
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF4A90E2), Color(0xFF6A5AE0)],
+            colors: [const Color(0xFF4A90E2), const Color(0xFF6A5AE0)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -350,8 +351,8 @@ class _SignInState extends State<SignInScreen> {
         child: Center(
           child: SingleChildScrollView(
             child: Container(
-              margin: EdgeInsets.symmetric(horizontal: 25),
-              padding: EdgeInsets.all(30),
+              margin: const EdgeInsets.symmetric(horizontal: 25),
+              padding: const EdgeInsets.all(30),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(25),
@@ -359,7 +360,7 @@ class _SignInState extends State<SignInScreen> {
                   BoxShadow(
                     color: Colors.black26,
                     blurRadius: 20,
-                    offset: Offset(0, 10),
+                    offset: const Offset(0, 10),
                   )
                 ],
               ),
@@ -368,19 +369,19 @@ class _SignInState extends State<SignInScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
+                    const Text(
                       "Welcome Back",
                       style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 30),
+                    const SizedBox(height: 30),
                     TextFormField(
                       controller: _emailController,
                       decoration: InputDecoration(
                         hintText: "Email",
-                        prefixIcon: Icon(Icons.email_outlined),
+                        prefixIcon: const Icon(Icons.email_outlined),
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
@@ -399,13 +400,13 @@ class _SignInState extends State<SignInScreen> {
                         return null;
                       },
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
                       decoration: InputDecoration(
                         hintText: "Password",
-                        prefixIcon: Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.lock_outline),
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
@@ -423,13 +424,13 @@ class _SignInState extends State<SignInScreen> {
                         return null;
                       },
                     ),
-                    SizedBox(height: 30),
+                    const SizedBox(height: 30),
                     Container(
                       width: double.infinity,
                       height: 55,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Color(0xFF4A90E2), Color(0xFF6A5AE0)],
+                          colors: [const Color(0xFF4A90E2), const Color(0xFF6A5AE0)],
                         ),
                         borderRadius: BorderRadius.circular(15),
                       ),
@@ -442,13 +443,13 @@ class _SignInState extends State<SignInScreen> {
                             borderRadius: BorderRadius.circular(15),
                           ),
                         ),
-                        child: Text(
+                        child: const Text(
                           "SIGN IN",
                           style: TextStyle(fontSize: 16),
                         ),
                       ),
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -467,6 +468,259 @@ class _SignInState extends State<SignInScreen> {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("ESIH"),
+        backgroundColor: const Color(0xFF4A90E2),
+        foregroundColor: Colors.white,
+      ),
+      body: Center(
+        child: _selectedIndex == 0
+            ? const HomeContent()
+            : _selectedIndex == 1
+                ? const MyListContent()
+                : const ProfileContent(),
+      ),
+      floatingActionButton: _selectedIndex == 0
+          ? FloatingActionButton(
+              backgroundColor: const Color(0xFF4A90E2),
+              child: const Icon(Icons.add),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (BuildContext context) {
+                      return const AddList();
+                    },
+                  ),
+                );
+              },
+            )
+          : null,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        selectedItemColor: const Color(0xFF4A90E2),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: "Home",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.playlist_add_check),
+            label: "My list",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: "Profile",
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class HomeContent extends StatelessWidget {
+  const HomeContent({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Text(
+        'Welcome to Home',
+        style: TextStyle(fontSize: 24),
+      ),
+    );
+  }
+}
+
+class MyListContent extends StatelessWidget {
+  const MyListContent({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Text(
+        'My Tasks',
+        style: TextStyle(fontSize: 24),
+      ),
+    );
+  }
+}
+
+class ProfileContent extends StatelessWidget {
+  const ProfileContent({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Text(
+        'Profile',
+        style: TextStyle(fontSize: 24),
+      ),
+    );
+  }
+}
+
+class AddList extends StatefulWidget {
+  const AddList({super.key});
+
+  @override
+  State createState() {
+    return _AddListState();
+  }
+}
+
+class _AddListState extends State<AddList> {
+  final GlobalKey _formKey = GlobalKey();
+  final TextEditingController taskField = TextEditingController();
+  final TextEditingController _date = TextEditingController();
+  final TextEditingController _date2 = TextEditingController();
+
+  @override
+  void dispose() {
+    taskField.dispose();
+    _date.dispose();
+    _date2.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Add New Task"),
+        backgroundColor: const Color(0xFF4A90E2),
+        foregroundColor: Colors.white,
+      ),
+      body: Container(
+        padding: const EdgeInsets.all(10.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: <Widget>[
+              const Text(
+                "Task Details",
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20.0),
+              TextFormField(
+                controller: taskField,
+                decoration: const InputDecoration(
+                  labelText: "Task Name",
+                  hintText: "Enter the name of your task",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.task),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Task name is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+
+              DateTimePicker(
+                type: DateTimePickerType.dateTime,
+                controller: _date,
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2101),
+                decoration: const InputDecoration(
+                  icon: Icon(Icons.calendar_today),
+                  labelText: "Select the start date & time",
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Start date is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+
+              DateTimePicker(
+                type: DateTimePickerType.dateTime,
+                controller: _date2,
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2101),
+                decoration: const InputDecoration(
+                  icon: Icon(Icons.calendar_today),
+                  labelText: "Select the end date & time",
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'End date is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 30),
+
+              ElevatedButton(
+                onPressed: () {
+                  if ((_formKey.currentState as FormState).validate()) {
+                    DateTime start = DateTime.parse(_date.text);
+                    DateTime end = DateTime.parse(_date2.text);
+                    
+                    // Here you would save the task to a list/database
+                    print("Task: ${taskField.text}");
+                    print("Start: $start, End: $end");
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Task added successfully!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    
+                    Navigator.pop(context);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  backgroundColor: const Color(0xFF4A90E2),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text(
+                  "Register the Task",
+                  style: TextStyle(fontSize: 16),
+                ),
+              ),
+            ],
           ),
         ),
       ),
