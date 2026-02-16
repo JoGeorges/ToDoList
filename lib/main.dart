@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:date_time_picker/date_time_picker.dart'; // datepackage to use DateTimeFormat
+import 'package:date_time_picker/date_time_picker.dart'; 
 
 void main(){
   runApp(MainApp());
