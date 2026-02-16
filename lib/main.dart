@@ -1,1434 +1,623 @@
 import 'package:flutter/material.dart';
-import 'package:date_time_picker/date_time_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
-void main() {
-  runApp(MainApp());
-}
+void main() => runApp(const TodoAppWithRoutes());
 
-class MainApp extends StatelessWidget {
-  MainApp({super.key});
+const Color vert = Color(0xFF427A43);
+const Color beige = Color(0xFFE8E2DB);
 
-  // Store user data with more information (first name, last name, password)
-  final Map<String, Map<String, String>> userDatabase = {};
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: SplashScreen(database: userDatabase),
-    );
-  }
-}
-
-// ===== SPLASH SCREEN =====
 class SplashScreen extends StatefulWidget {
-  final Map<String, Map<String, String>> database;
-  const SplashScreen({super.key, required this.database});
-
+  const SplashScreen({Key? key}) : super(key: key);
   @override
-  _SplashScreenState createState() => _SplashScreenState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen> {
   @override
-  void initState() {
-    super.initState();
-    
-    // Wait 3 seconds then go to sign in screen
-    Future.delayed(const Duration(seconds: 3), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => SignInScreen(database: widget.database),
-        ),
-      );
-    });
+  void initState() { super.initState(); _navigateAfterDelay(); }
+  
+  void _navigateAfterDelay() async {
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+    final isLoggedIn = (await SharedPreferences.getInstance()).getBool('isLoggedIn') ?? false;
+    Navigator.of(context).pushReplacementNamed(isLoggedIn ? '/home' : '/login');
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF4A90E2),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.add_task, size: 100, color: Colors.white),
-            const SizedBox(height: 20),
-            const Text(
-              'My To do List', 
-              style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 40),
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    body: Container(
+      decoration: BoxDecoration(gradient: LinearGradient(colors: [vert, beige], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
+      child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(Icons.check_circle, size: 80, color: Colors.white),
+        const SizedBox(height: 20),
+        const Text('TachFLOW', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.white)),
+        const SizedBox(height: 40),
+        const CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+      ])),
+    ),
+  );
 }
 
-// ===== AUTHENTICATION SCREENS =====
-class SignUpScreen extends StatefulWidget {
-  final Map<String, Map<String, String>> database;
-  const SignUpScreen({super.key, required this.database});
-
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({Key? key}) : super(key: key);
   @override
-  State<SignUpScreen> createState() => _SignUpState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _SignUpState extends State<SignUpScreen> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  
-  final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
-  
-  final RegExp emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+class _LoginScreenState extends State<LoginScreen> {
+  final _email = TextEditingController(), _password = TextEditingController();
+  bool _isLoading = false;
 
-  @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
-  void _submit() {
-    if (_formKey.currentState!.validate()) {
-      String email = _emailController.text;
-      String password = _passwordController.text;
-      String firstName = _firstNameController.text;
-      String lastName = _lastNameController.text;
-
-      if (widget.database.containsKey(email)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Email already exists!'),
-            backgroundColor: Colors.red,
-          ),
-        );
+  void _login() async {
+    if (_email.text.isEmpty || _password.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tous les champs sont requis')));
+      return;
+    }
+    if (!_isValidEmail(_email.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Format d\'email invalide')));
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final users = prefs.getStringList('users') ?? [];
+      bool found = false;
+      
+      for (var u in users) {
+        final user = jsonDecode(u);
+        if (user['email'] == _email.text && user['password'] == _password.text) {
+          await prefs.setBool('isLoggedIn', true);
+          await prefs.setString('userId', user['id'].toString());
+          await prefs.setString('userName', user['name']);
+          await prefs.setString('userEmail', user['email']);
+          found = true;
+          break;
+        }
+      }
+      
+      if (found) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed('/home');
         return;
       }
 
-      setState(() {
-        // Store more user information
-        widget.database[email] = {
-          'firstName': firstName,
-          'lastName': lastName,
-          'password': password,
-        };
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Registration successful! Please sign in.'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      Navigator.pop(context);
+      final response = await http.get(Uri.parse('https://jsonplaceholder.typicode.com/users'));
+      if (response.statusCode == 200) {
+        for (var apiUser in jsonDecode(response.body)) {
+          if (apiUser['email'] == _email.text) {
+            final newUser = {'id': apiUser['id'].toString(), 'name': apiUser['name'], 'email': apiUser['email'], 'password': _password.text};
+            users.add(jsonEncode(newUser));
+            await prefs.setStringList('users', users);
+            await prefs.setBool('isLoggedIn', true);
+            await prefs.setString('userId', apiUser['id'].toString());
+            await prefs.setString('userName', apiUser['name']);
+            await prefs.setString('userEmail', apiUser['email']);
+            if (!mounted) return;
+            Navigator.of(context).pushReplacementNamed('/home');
+            return;
+          }
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email ou mot de passe incorrect')));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [const Color(0xFF4A90E2), const Color(0xFF6A5AE0)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: beige,
+    appBar: AppBar(title: const Text('TachFLOW'), backgroundColor: vert, centerTitle: false),
+    body: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.lock_person, size: 60, color: Color(0xFF427A43)),
+        const SizedBox(height: 10),
+        const Text('KONEKSYON', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF427A43))),
+        const SizedBox(height: 40),
+        TextField(
+          controller: _email, 
+          style: TextStyle(color: vert),
+          decoration: InputDecoration(
+            labelText: 'Imel', 
+            labelStyle: TextStyle(color: vert),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)),
+            filled: true, 
+            fillColor: beige
+          )
         ),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 25),
-              padding: const EdgeInsets.all(30),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  )
-                ],
-              ),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      "Create Account",
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    TextFormField(
-                      controller: _firstNameController,
-                      decoration: InputDecoration(
-                        hintText: "First Name",
-                        prefixIcon: const Icon(Icons.person_outline),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'First name is required';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _lastNameController,
-                      decoration: InputDecoration(
-                        hintText: "Last Name",
-                        prefixIcon: const Icon(Icons.person_outline),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Last name is required';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _emailController,
-                      decoration: InputDecoration(
-                        hintText: "Email",
-                        prefixIcon: const Icon(Icons.email_outlined),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Email is required';
-                        }
-                        if (!emailRegex.hasMatch(value)) {
-                          return 'Enter a valid email';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: "Password",
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Password is required';
-                        }
-                        if (value.length < 8) {
-                          return 'Minimum 8 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _confirmPasswordController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: "Confirm Password",
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please confirm password';
-                        }
-                        if (value != _passwordController.text) {
-                          return 'Passwords do not match';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 30),
-                    Container(
-                      width: double.infinity,
-                      height: 55,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [const Color(0xFF4A90E2), const Color(0xFF6A5AE0)],
-                        ),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: ElevatedButton(
-                        onPressed: _submit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                        ),
-                        child: const Text(
-                          "SIGN UP",
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: Text(
-                        "Already have an account? Sign In",
-                        style: TextStyle(color: Colors.grey[700]),
-                      ),
-                    )
-                  ],
-                ),
-              ),
-            ),
-          ),
+        const SizedBox(height: 20),
+        TextField(
+          controller: _password, 
+          style: TextStyle(color: vert),
+          decoration: InputDecoration(
+            labelText: 'Modpas', 
+            labelStyle: TextStyle(color: vert),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)),
+            filled: true, 
+            fillColor: beige
+          ), 
+          obscureText: true
         ),
-      ),
-    );
-  }
-}
-
-class SignInScreen extends StatefulWidget {
-  final Map<String, Map<String, String>> database;
-  const SignInScreen({super.key, required this.database});
-
-  @override
-  State<SignInScreen> createState() => _SignInState();
-}
-
-class _SignInState extends State<SignInScreen> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+        const SizedBox(height: 30),
+        _isLoading ? const CircularProgressIndicator() : ElevatedButton(onPressed: _login, child: const Text('Konekte'), style: ElevatedButton.styleFrom(backgroundColor: vert)),
+        const SizedBox(height: 20),
+        TextButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignupScreen())), child: const Text('Kreye yon kont', style: TextStyle(color: vert))),
+      ]),
+    ),
+  );
   
-  final RegExp emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-
-  // Store current user email for profile
-  static String? currentUserEmail;
-
   @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  void dispose() { _email.dispose(); _password.dispose(); super.dispose(); }
+}
+
+class SignupScreen extends StatefulWidget {
+  const SignupScreen({Key? key}) : super(key: key);
+  @override
+  State<SignupScreen> createState() => _SignupScreenState();
+}
+
+class _SignupScreenState extends State<SignupScreen> {
+  final _name = TextEditingController(), _email = TextEditingController(), _password = TextEditingController();
+
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
-  void _signIn() {
-    if (_formKey.currentState!.validate()) {
-      String email = _emailController.text;
-      String password = _passwordController.text;
-
-      if (widget.database.containsKey(email)) {
-        if (widget.database[email]!['password'] == password) {
-          // Save current user email
-          currentUserEmail = email;
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Login successful!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const HomeScreen(),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Incorrect password'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Email not found'),
-            backgroundColor: Colors.red,
-          ),
-        );
+  void _signup() async {
+    if (_name.text.isEmpty || _email.text.isEmpty || _password.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tout chan yon obligatwa !')));
+      return;
+    }
+    if (!_isValidEmail(_email.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Foma imel la envalid !')));
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final users = prefs.getStringList('users') ?? [];
+    
+    for (var u in users) {
+      if (jsonDecode(u)['email'] == _email.text) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Imel sa deja itilize !')));
+        return;
       }
     }
+    
+    users.add(jsonEncode({
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'name': _name.text,
+      'email': _email.text,
+      'password': _password.text,
+    }));
+    await prefs.setStringList('users', users);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kont ou an kreye ak sikse !')));
+    if (!mounted) return;
+    Navigator.of(context).pop();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [const Color(0xFF4A90E2), const Color(0xFF6A5AE0)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: beige,
+    appBar: AppBar(title: const Text('TachFLOW'), backgroundColor: vert, centerTitle: false),
+    body: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.lock_person, size: 60, color: Color(0xFF427A43)),
+        const SizedBox(height: 10),
+        const Text('ENSKRIPSYON', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF427A43))),
+        const SizedBox(height: 40),
+        TextField(
+          controller: _name, 
+          style: TextStyle(color: vert),
+          decoration: InputDecoration(
+            labelText: 'Non konple', 
+            labelStyle: TextStyle(color: vert),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)),
+            filled: true, 
+            fillColor: beige
+          )
         ),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 25),
-              padding: const EdgeInsets.all(30),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  )
-                ],
-              ),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      "Welcome Back",
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    TextFormField(
-                      controller: _emailController,
-                      decoration: InputDecoration(
-                        hintText: "Email",
-                        prefixIcon: const Icon(Icons.email_outlined),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Email is required';
-                        }
-                        if (!emailRegex.hasMatch(value)) {
-                          return 'Enter a valid email';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: "Password",
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Password is required';
-                        }
-                        if (value.length < 8) {
-                          return 'Minimum 8 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 30),
-                    Container(
-                      width: double.infinity,
-                      height: 55,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [const Color(0xFF4A90E2), const Color(0xFF6A5AE0)],
-                        ),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: ElevatedButton(
-                        onPressed: _signIn,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                        ),
-                        child: const Text(
-                          "SIGN IN",
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => SignUpScreen(database: widget.database),
-                          ),
-                        );
-                      },
-                      child: Text(
-                        "Don't have an account? Sign Up",
-                        style: TextStyle(color: Colors.grey[700]),
-                      ),
-                    )
-                  ],
-                ),
-              ),
-            ),
-          ),
+        const SizedBox(height: 20),
+        TextField(
+          controller: _email, 
+          style: TextStyle(color: vert),
+          decoration: InputDecoration(
+            labelText: 'Imel', 
+            labelStyle: TextStyle(color: vert),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)),
+            filled: true, 
+            fillColor: beige
+          ), 
+          keyboardType: TextInputType.emailAddress
         ),
-      ),
-    );
-  }
+        const SizedBox(height: 20),
+        TextField(
+          controller: _password, 
+          style: TextStyle(color: vert),
+          decoration: InputDecoration(
+            labelText: 'Modpas', 
+            labelStyle: TextStyle(color: vert),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)),
+            filled: true, 
+            fillColor: beige
+          ), 
+          obscureText: true
+        ),
+        const SizedBox(height: 30),
+        ElevatedButton(onPressed: _signup, child: const Text('Kreye yon kont'), style: ElevatedButton.styleFrom(backgroundColor: vert)),
+      ]),
+    ),
+  );
+  
+  @override
+  void dispose() { _name.dispose(); _email.dispose(); _password.dispose(); super.dispose(); }
 }
 
-// ===== TASK MODEL =====
-class Task {
-  String name;
-  String description;
-  DateTime startDate;
-  DateTime endDate;
-  bool isCompleted;
-
-  Task({
-    required this.name,
-    required this.description,
-    required this.startDate,
-    required this.endDate,
-    this.isCompleted = false,
-  });
-}
-
-// ===== HOME SCREEN WITH BOTTOM NAVIGATION =====
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-
+  const HomeScreen({Key? key}) : super(key: key);
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0; // 0: TaskList, 1: Completed, 2: Profile
-  
-  // Task list
-  List<Task> tasks = [];
+  int _index = 0;
+  List<Task> _tasks = [], _completed = [];
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
+  @override
+  void initState() { super.initState(); _loadTasks(); }
 
-  Future<DateTime?> _selectDateTime(BuildContext context) async {
-    DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-
-    if (pickedDate != null) {
-      TimeOfDay? pickedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.now(),
-      );
-
-      if (pickedTime != null) {
-        return DateTime(
-          pickedDate.year,
-          pickedDate.month,
-          pickedDate.day,
-          pickedTime.hour,
-          pickedTime.minute,
-        );
+  void _loadTasks() async {
+    final userId = (await SharedPreferences.getInstance()).getString('userId') ?? '1';
+    try {
+      final response = await http.get(Uri.parse('https://jsonplaceholder.typicode.com/todos?userId=$userId'));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as List;
+        setState(() {
+          _tasks = data.where((t) => !t['completed']).map((t) => Task(id: t['id'], title: t['title'], description: '', startDate: '', endDate: '', completed: false)).toList();
+          _completed = data.where((t) => t['completed']).map((t) => Task(id: t['id'], title: t['title'], description: '', startDate: '', endDate: '', completed: true)).toList();
+        });
       }
-    }
-    return null;
+    } catch (e) { print('Ere: $e'); }
   }
 
-  void _addTask() async {
-    TextEditingController nameController = TextEditingController();
-    TextEditingController descriptionController = TextEditingController();
-    DateTime? startDate;
-    DateTime? endDate;
-
-    await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('New Task'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Name',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 10),
-                    ListTile(
-                      title: Text(startDate == null
-                          ? 'Choose start date'
-                          : 'Start: ${startDate!.day}/${startDate!.month}/${startDate!.year} ${startDate!.hour}:${startDate!.minute.toString().padLeft(2, '0')}'),
-                      trailing: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        DateTime? date = await _selectDateTime(context);
-                        if (date != null) {
-                          setDialogState(() {
-                            startDate = date;
-                          });
-                        }
-                      },
-                    ),
-                    ListTile(
-                      title: Text(endDate == null
-                          ? 'Choose end date'
-                          : 'End: ${endDate!.day}/${endDate!.month}/${endDate!.year} ${endDate!.hour}:${endDate!.minute.toString().padLeft(2, '0')}'),
-                      trailing: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        DateTime? date = await _selectDateTime(context);
-                        if (date != null) {
-                          setDialogState(() {
-                            endDate = date;
-                          });
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  child: const Text('CANCEL'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                ElevatedButton(
-                  child: const Text('ADD'),
-                  onPressed: () {
-                    if (nameController.text.isNotEmpty &&
-                        descriptionController.text.isNotEmpty &&
-                        startDate != null &&
-                        endDate != null) {
-                      setState(() {
-                        tasks.add(Task(
-                          name: nameController.text,
-                          description: descriptionController.text,
-                          startDate: startDate!,
-                          endDate: endDate!,
-                        ));
-                      });
-                      Navigator.of(context).pop();
-                    }
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+  void _logout() async {
+    final p = await SharedPreferences.getInstance();
+    await p.remove('isLoggedIn'); await p.remove('userId'); await p.remove('userName'); await p.remove('userEmail');
+    if (!mounted) return; Navigator.of(context).pushReplacementNamed('/login');
   }
 
-  void _editTask(int index) async {
-    TextEditingController nameController = TextEditingController(text: tasks[index].name);
-    TextEditingController descriptionController = TextEditingController(text: tasks[index].description);
-    DateTime startDate = tasks[index].startDate;
-    DateTime endDate = tasks[index].endDate;
-
-    await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Edit Task'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Name',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 10),
-                    ListTile(
-                      title: Text(
-                          'Start: ${startDate.day}/${startDate.month}/${startDate.year} ${startDate.hour}:${startDate.minute.toString().padLeft(2, '0')}'),
-                      trailing: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        DateTime? date = await _selectDateTime(context);
-                        if (date != null) {
-                          setDialogState(() {
-                            startDate = date;
-                          });
-                        }
-                      },
-                    ),
-                    ListTile(
-                      title: Text(
-                          'End: ${endDate.day}/${endDate.month}/${endDate.year} ${endDate.hour}:${endDate.minute.toString().padLeft(2, '0')}'),
-                      trailing: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        DateTime? date = await _selectDateTime(context);
-                        if (date != null) {
-                          setDialogState(() {
-                            endDate = date;
-                          });
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  child: const Text('CANCEL'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                ElevatedButton(
-                  child: const Text('EDIT'),
-                  onPressed: () {
-                    if (nameController.text.isNotEmpty &&
-                        descriptionController.text.isNotEmpty) {
-                      setState(() {
-                        tasks[index] = Task(
-                          name: nameController.text,
-                          description: descriptionController.text,
-                          startDate: startDate,
-                          endDate: endDate,
-                          isCompleted: tasks[index].isCompleted,
-                        );
-                      });
-                      Navigator.of(context).pop();
-                    }
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _deleteTask(int index) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirmation'),
-          content: const Text('Are you sure you want to delete this task?'),
-          actions: [
-            TextButton(
-              child: const Text('CANCEL'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            ElevatedButton(
-              child: const Text('DELETE'),
-              onPressed: () {
-                setState(() {
-                  tasks.removeAt(index);
-                });
-                Navigator.of(context).pop();
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _toggleTaskCompletion(int index) {
+  void _toggle(Task t) {
     setState(() {
-      tasks[index].isCompleted = !tasks[index].isCompleted;
+      if (t.completed) {
+        _completed.remove(t);
+        t.completed = false;
+        _tasks.add(t);
+      } else {
+        _tasks.remove(t);
+        t.completed = true;
+        _completed.add(t);
+      }
     });
   }
-
-  List<Task> get _activeTasks {
-    return tasks.where((task) => !task.isCompleted).toList();
+  
+  void _delete(Task t) => setState(() { _tasks.remove(t); _completed.remove(t); });
+  
+  void _edit(Task t) {
+    final title = TextEditingController(text: t.title), desc = TextEditingController(text: t.description);
+    final start = TextEditingController(text: t.startDate), end = TextEditingController(text: t.endDate);
+    showDialog(context: context, builder: (_) => AlertDialog(
+      backgroundColor: beige,
+      title: const Text('Modifye', style: TextStyle(color: vert)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: title, style: TextStyle(color: vert), decoration: InputDecoration(labelText: 'Tit tach', labelStyle: TextStyle(color: vert), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)), filled: true, fillColor: beige)),
+        const SizedBox(height: 10),
+        TextField(controller: desc, style: TextStyle(color: vert), decoration: InputDecoration(labelText: 'Deskripsyon', labelStyle: TextStyle(color: vert), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)), filled: true, fillColor: beige)),
+        const SizedBox(height: 10),
+        TextField(controller: start, style: TextStyle(color: vert), decoration: InputDecoration(labelText: 'Dat komansman', labelStyle: TextStyle(color: vert), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)), filled: true, fillColor: beige), readOnly: true, onTap: () async {
+          DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
+          if (picked != null) start.text = "${picked.day}/${picked.month}/${picked.year}";
+        }),
+        const SizedBox(height: 10),
+        TextField(controller: end, style: TextStyle(color: vert), decoration: InputDecoration(labelText: 'Dat fen', labelStyle: TextStyle(color: vert), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)), filled: true, fillColor: beige), readOnly: true, onTap: () async {
+          DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
+          if (picked != null) end.text = "${picked.day}/${picked.month}/${picked.year}";
+        }),
+      ]),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Anile', style: TextStyle(color: vert))), 
+                TextButton(onPressed: () { setState(() { t.title = title.text; t.description = desc.text; t.startDate = start.text; t.endDate = end.text; }); Navigator.pop(context); }, child: const Text('Sauvegarder', style: TextStyle(color: vert)))],
+    ));
   }
 
-  List<Task> get _completedTasks {
-    return tasks.where((task) => task.isCompleted).toList();
-  }
-
-  Widget _buildTaskList(List<Task> taskList, {bool isCompletedPage = false}) {
-    if (taskList.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isCompletedPage ? Icons.check_circle_outline : Icons.task_alt,
-              size: 100,
-              color: Colors.grey,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              isCompletedPage ? 'No completed tasks' : 'No tasks',
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              isCompletedPage 
-                  ? 'Completed tasks will appear here'
-                  : 'Click the + button to add a task',
-              style: const TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: taskList.length,
-      itemBuilder: (context, index) {
-        // Find original index in the full list
-        int originalIndex = tasks.indexOf(taskList[index]);
-        
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          elevation: 2,
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            leading: Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: taskList[index].isCompleted ? Colors.green : Colors.blue,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  '${tasks.indexOf(taskList[index]) + 1}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-            title: Text(
-              taskList[index].name,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                decoration: taskList[index].isCompleted 
-                    ? TextDecoration.lineThrough 
-                    : null,
-                color: taskList[index].isCompleted 
-                    ? Colors.grey 
-                    : Colors.black,
-              ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  taskList[index].description,
-                  style: TextStyle(
-                    fontSize: 14,
-                    decoration: taskList[index].isCompleted 
-                        ? TextDecoration.lineThrough 
-                        : null,
-                    color: taskList[index].isCompleted ? Colors.grey : Colors.black54,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.play_circle_outline, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${taskList[index].startDate.day}/${taskList[index].startDate.month} ${taskList[index].startDate.hour}:${taskList[index].startDate.minute.toString().padLeft(2, '0')}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(Icons.stop_circle, size: 14, color: Colors.grey), // CORRECTION: changed from stop_circle_outline to stop_circle
-                    const SizedBox(width: 4),
-                    Text(
-                      '${taskList[index].endDate.day}/${taskList[index].endDate.month} ${taskList[index].endDate.hour}:${taskList[index].endDate.minute.toString().padLeft(2, '0')}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Checkbox
-                Checkbox(
-                  value: taskList[index].isCompleted,
-                  onChanged: (value) {
-                    _toggleTaskCompletion(originalIndex);
-                  },
-                  activeColor: Colors.green,
-                  visualDensity: VisualDensity.compact,
-                ),
-                // Edit button (only for incomplete tasks)
-                if (!taskList[index].isCompleted)
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
-                    onPressed: () => _editTask(originalIndex),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                // Delete button
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                  onPressed: () => _deleteTask(originalIndex),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  void _add() {
+    final title = TextEditingController(), desc = TextEditingController(), start = TextEditingController(), end = TextEditingController();
+    showDialog(context: context, builder: (_) => AlertDialog(
+      backgroundColor: beige,
+      title: const Text('Ajoute', style: TextStyle(color: vert)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: title, style: TextStyle(color: vert), decoration: InputDecoration(labelText: 'Tit tach', labelStyle: TextStyle(color: vert), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)), filled: true, fillColor: beige)),
+        const SizedBox(height: 10),
+        TextField(controller: desc, style: TextStyle(color: vert), decoration: InputDecoration(labelText: 'Deskripsyon', labelStyle: TextStyle(color: vert), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)), filled: true, fillColor: beige)),
+        const SizedBox(height: 10),
+        TextField(controller: start, style: TextStyle(color: vert), decoration: InputDecoration(labelText: 'Dat komansman', labelStyle: TextStyle(color: vert), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)), filled: true, fillColor: beige), readOnly: true, onTap: () async {
+          DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
+          if (picked != null) start.text = "${picked.day}/${picked.month}/${picked.year}";
+        }),
+        const SizedBox(height: 10),
+        TextField(controller: end, style: TextStyle(color: vert), decoration: InputDecoration(labelText: 'Dat fen', labelStyle: TextStyle(color: vert), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: vert, width: 2)), filled: true, fillColor: beige), readOnly: true, onTap: () async {
+          DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2100));
+          if (picked != null) end.text = "${picked.day}/${picked.month}/${picked.year}";
+        }),
+      ]),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Anile', style: TextStyle(color: vert))), 
+                TextButton(onPressed: () { if (title.text.isNotEmpty) setState(() => _tasks.add(Task(id: _tasks.length+1, title: title.text, description: desc.text, startDate: start.text, endDate: end.text, completed: false))); Navigator.pop(context); }, child: const Text('Ajoute', style: TextStyle(color: vert)))],
+    ));
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_selectedIndex == 0 
-            ? 'Active Tasks' 
-            : _selectedIndex == 1 
-                ? 'Completed Tasks' 
-                : 'Profile'),
-        backgroundColor: const Color(0xFF4A90E2),
-        foregroundColor: Colors.white,
-      ),
-      body: _selectedIndex == 0
-          ? _buildTaskList(_activeTasks)
-          : _selectedIndex == 1
-              ? _buildTaskList(_completedTasks, isCompletedPage: true)
-              : const ProfileScreen(),
-      floatingActionButton: _selectedIndex == 0 
-          ? FloatingActionButton(
-              onPressed: _addTask,
-              child: const Icon(Icons.add),
-              backgroundColor: const Color(0xFF4A90E2),
-              tooltip: 'Add task',
-            )
-          : null,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        selectedItemColor: const Color(0xFF4A90E2),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.task),
-            label: "Active",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.check_circle_outline),
-            label: "Completed",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: "Profile",
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: beige,
+    appBar: AppBar(title: const Text('TachFLOW'), backgroundColor: vert,
+           actions: _index == 0 ? [IconButton(icon: const Icon(Icons.logout), onPressed: _logout)] : null),
+    body: [
+      TaskListScreen(tasks: _tasks, onToggle: _toggle, onDelete: _delete, onEdit: _edit, onAdd: _add),
+      CompletedTasksScreen(tasks: _completed, onToggle: _toggle),
+      const ProfileScreen()
+    ][_index],
+    bottomNavigationBar: BottomNavigationBar(currentIndex: _index, onTap: (i) => setState(() => _index = i), 
+      backgroundColor: vert,
+      selectedItemColor: Colors.white,
+      unselectedItemColor: Colors.white70,
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.add_home_outlined), label: 'Tach'),
+        BottomNavigationBarItem(icon: Icon(Icons.check_circle_outline), label: 'Konplete'),
+        BottomNavigationBarItem(icon: Icon(Icons.account_circle_outlined), label: 'Pwofil'),
+      ]),
+  );
 }
 
-// ===== PROFILE SCREEN =====
-class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+class TaskListScreen extends StatelessWidget {
+  final List<Task> tasks; final Function(Task) onToggle, onDelete, onEdit; final Function() onAdd;
+  const TaskListScreen({required this.tasks, required this.onToggle, required this.onDelete, required this.onEdit, required this.onAdd});
+  
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: beige,
+    body: tasks.isEmpty 
+      ? Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.folder_off, size: 80, color: vert),
+              const SizedBox(height: 16),
+              const Text('Pa genyen okenn tach !'),
+            ],
+          ),
+        )
+      : Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: ListView.builder(
+            itemCount: tasks.length,
+            itemBuilder: (c, i) => Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                border: Border.all(color: vert, width: 1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ListTile(
+                leading: CircleAvatar(child: Text('${i+1}'), backgroundColor: vert),
+                title: Text(tasks[i].title), 
+                subtitle: Text(tasks[i].description),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  IconButton(icon: const Icon(Icons.edit), onPressed: () => onEdit(tasks[i])),
+                  IconButton(icon: const Icon(Icons.delete), onPressed: () => onDelete(tasks[i])),
+                  Checkbox(value: tasks[i].completed, onChanged: (_) => onToggle(tasks[i]), activeColor: vert),
+                ]),
+              ),
+            ),
+          ),
+        ),
+    floatingActionButton: FloatingActionButton(onPressed: onAdd, child: const Icon(Icons.add), backgroundColor: vert),
+  );
+}
 
+class CompletedTasksScreen extends StatelessWidget {
+  final List<Task> tasks; final Function(Task) onToggle;
+  const CompletedTasksScreen({required this.tasks, required this.onToggle});
+  
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: beige,
+    body: tasks.isEmpty 
+      ? Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.folder_off, size: 80, color: vert),
+              const SizedBox(height: 16),
+              const Text('Pa genyen okenn tach !'),
+            ],
+          ),
+        )
+      : Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: ListView.builder(
+            itemCount: tasks.length,
+            itemBuilder: (c, i) => Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                border: Border.all(color: vert, width: 1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ListTile(
+                leading: CircleAvatar(child: Text('${i+1}'), backgroundColor: vert),
+                title: Text(tasks[i].title, style: const TextStyle(decoration: TextDecoration.lineThrough)),
+                subtitle: Text(tasks[i].description, style: const TextStyle(decoration: TextDecoration.lineThrough)),
+                trailing: Checkbox(value: tasks[i].completed, onChanged: (_) => onToggle(tasks[i]), activeColor: vert),
+              ),
+            ),
+          ),
+        ),
+  );
+}
+
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({Key? key}) : super(key: key);
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final TextEditingController _currentPasswordController = TextEditingController();
-  final TextEditingController _newPasswordController = TextEditingController();
-  final TextEditingController _confirmNewPasswordController = TextEditingController();
+  String _name = '', _email = '';
 
   @override
-  void dispose() {
-    _currentPasswordController.dispose();
-    _newPasswordController.dispose();
-    _confirmNewPasswordController.dispose();
-    super.dispose();
+  void initState() { super.initState(); _load(); }
+  
+  void _load() async {
+    final p = await SharedPreferences.getInstance();
+    setState(() { 
+      _name = p.getString('userName') ?? ''; 
+      _email = p.getString('userEmail') ?? ''; 
+    });
   }
 
-  void _showDeleteConfirmationDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Delete Account'),
-          content: const Text(
-            'Are you sure you want to delete your account? This action cannot be undone.'
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                // Get the main app's database
-                final mainApp = context.findAncestorWidgetOfExactType<MainApp>();
-                if (mainApp != null && _SignInState.currentUserEmail != null) {
-                  setState(() {
-                    // Remove user from database
-                    mainApp.userDatabase.remove(_SignInState.currentUserEmail);
-                    _SignInState.currentUserEmail = null;
-                  });
-                  
-                  Navigator.pop(context); // Close dialog
-                  
-                  // Navigate back to sign in
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SignInScreen(
-                        database: mainApp.userDatabase,
-                      ),
-                    ),
-                    (route) => false,
-                  );
-                  
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Account deleted successfully'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
+  void _logout() async {
+    final p = await SharedPreferences.getInstance();
+    await p.remove('isLoggedIn'); await p.remove('userId'); await p.remove('userName'); await p.remove('userEmail');
+    if (!mounted) return; Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
   }
 
-  void _showChangePasswordDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Change Password'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _currentPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Current Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _newPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'New Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _confirmNewPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm New Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                // Clear controllers
-                _currentPasswordController.clear();
-                _newPasswordController.clear();
-                _confirmNewPasswordController.clear();
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // Validate passwords
-                if (_newPasswordController.text.length < 8) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Password must be at least 8 characters'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-                
-                if (_newPasswordController.text != _confirmNewPasswordController.text) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('New passwords do not match'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-
-                // Update password in database
-                final mainApp = context.findAncestorWidgetOfExactType<MainApp>();
-                if (mainApp != null && _SignInState.currentUserEmail != null) {
-                  final userData = mainApp.userDatabase[_SignInState.currentUserEmail];
-                  
-                  if (userData != null && userData['password'] == _currentPasswordController.text) {
-                    setState(() {
-                      userData['password'] = _newPasswordController.text;
-                    });
-                    
-                    Navigator.pop(context);
-                    
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Password changed successfully'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                    
-                    // Clear controllers
-                    _currentPasswordController.clear();
-                    _newPasswordController.clear();
-                    _confirmNewPasswordController.clear();
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Current password is incorrect'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              child: const Text('Change'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  void _deleteAccount() => showDialog(context: context, builder: (_) => AlertDialog(
+    backgroundColor: beige,
+    title: const Text('Konfime', style: TextStyle(color: vert)),
+    content: const Text('Siprime kont lan ?', style: TextStyle(color: vert)),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Anile', style: TextStyle(color: vert))),
+      TextButton(onPressed: () async {
+        final p = await SharedPreferences.getInstance();
+        final email = p.getString('userEmail');
+        if (email != null) {
+          final users = p.getStringList('users') ?? [];
+          users.removeWhere((u) => jsonDecode(u)['email'] == email);
+          await p.setStringList('users', users);
+        }
+        await p.remove('isLoggedIn'); await p.remove('userId'); await p.remove('userName'); await p.remove('userEmail');
+        if (!mounted) return; Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      }, child: const Text('Siprime', style: TextStyle(color: vert))),
+    ],
+  ));
 
   @override
-  Widget build(BuildContext context) {
-    // Get current user data
-    final mainApp = context.findAncestorWidgetOfExactType<MainApp>();
-    String firstName = 'User';
-    String lastName = '';
-    String email = 'No email';
-
-    if (mainApp != null && _SignInState.currentUserEmail != null) {
-      final userData = mainApp.userDatabase[_SignInState.currentUserEmail];
-      if (userData != null) {
-        firstName = userData['firstName'] ?? 'User';
-        lastName = userData['lastName'] ?? '';
-        email = _SignInState.currentUserEmail!;
-      }
-    }
-
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            const SizedBox(height: 30),
-            // Profile Header
-            Container(
-              padding: const EdgeInsets.all(30),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF4A90E2), Color(0xFF6A5AE0)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                children: [
-                  const CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.person,
-                      size: 50,
-                      color: Color(0xFF4A90E2),
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: beige,
+    body: Padding(
+      padding: const EdgeInsets.all(20), 
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 20),
+          const Center(
+            child: CircleAvatar(
+              radius: 50,
+              backgroundColor: Colors.transparent,
+              child: Icon(Icons.person_pin, size: 100, color: vert),
+            ),
+          ),
+          const SizedBox(height: 30),
+          Padding(
+            padding: const EdgeInsets.only(left: 50),
+            child: Row(
+              children: [
+                Icon(Icons.person, color: vert, size: 30),
+                const SizedBox(width: 15),
+                Text('Non: ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: vert)),
+                Text(_name, style: const TextStyle(fontSize: 18)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.only(left: 50),
+            child: Row(
+              children: [
+                Icon(Icons.email, color: vert, size: 30),
+                const SizedBox(width: 15),
+                Text('Imel: ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: vert)),
+                Text(_email, style: const TextStyle(fontSize: 18)),
+              ],
+            ),
+          ),
+          const Spacer(),
+          Center(
+            child: Column(
+              children: [
+                SizedBox(
+                  width: 200,
+                  child: ElevatedButton.icon(
+                    onPressed: _logout,
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Dekoneksyon'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: vert,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    '$firstName $lastName',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: 200,
+                  child: OutlinedButton.icon(
+                    onPressed: _deleteAccount,
+                    icon: const Icon(Icons.delete),
+                    label: const Text('Siprime kont lan'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: vert,
+                      side: BorderSide(color: vert, width: 1),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    email,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            const SizedBox(height: 30),
-            
-            // Account Information Card
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.info, color: Color(0xFF4A90E2)),
-                        SizedBox(width: 10),
-                        Text(
-                          'Account Information',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 30),
-                    
-                    // First Name
-                    ListTile(
-                      leading: const Icon(Icons.person_outline, color: Color(0xFF4A90E2)),
-                      title: const Text('First Name'),
-                      subtitle: Text(firstName),
-                    ),
-                    
-                    // Last Name
-                    ListTile(
-                      leading: const Icon(Icons.person_outline, color: Color(0xFF4A90E2)),
-                      title: const Text('Last Name'),
-                      subtitle: Text(lastName),
-                    ),
-                    
-                    // Email
-                    ListTile(
-                      leading: const Icon(Icons.email_outlined, color: Color(0xFF4A90E2)),
-                      title: const Text('Email'),
-                      subtitle: Text(email),
-                    ),
-                  ],
                 ),
-              ),
+              ],
             ),
-            
-            const SizedBox(height: 20),
-            
-            // Actions Card
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.settings, color: Color(0xFF4A90E2)),
-                        SizedBox(width: 10),
-                        Text(
-                          'Account Actions',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 30),
-                    
-                    // Change Password Button
-                    ListTile(
-                      leading: const Icon(Icons.lock_outline, color: Color(0xFF4A90E2)),
-                      title: const Text('Change Password'),
-                      subtitle: const Text('Update your account password'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: _showChangePasswordDialog,
-                    ),
-                    
-                    const Divider(),
-                    
-                    // Delete Account Button
-                    ListTile(
-                      leading: const Icon(Icons.delete_outline, color: Colors.red),
-                      title: const Text(
-                        'Delete Account',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                      subtitle: const Text(
-                        'Permanently delete your account',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.red),
-                      onTap: _showDeleteConfirmationDialog,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 20),
-            
-            // Sign Out Button
-            Container(
-              width: double.infinity,
-              height: 55,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: Colors.red),
-              ),
-              child: TextButton(
-                onPressed: () {
-                  _SignInState.currentUserEmail = null;
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SignInScreen(
-                        database: context.findAncestorWidgetOfExactType<MainApp>()!.userDatabase,
-                      ),
-                    ),
-                    (route) => false,
-                  );
-                },
-                child: const Text(
-                  'SIGN OUT',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.red,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 20),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
+class Task {
+  int id; String title, description, startDate, endDate; bool completed;
+  Task({required this.id, required this.title, required this.description, required this.startDate, required this.endDate, required this.completed});
+}
+
+class TodoAppWithRoutes extends StatelessWidget {
+  const TodoAppWithRoutes({Key? key}) : super(key: key);
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'TACH ',
+    theme: ThemeData(primarySwatch: Colors.green, scaffoldBackgroundColor: beige),
+    home: const SplashScreen(),
+    routes: {'/login': (c) => const LoginScreen(), '/home': (c) => const HomeScreen()},
+    debugShowCheckedModeBanner: false
+  );
 }
