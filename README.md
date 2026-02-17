@@ -1,16 +1,30 @@
-# todolist
+TaskFlow – Application de Gestion de Tâches
+Projet académique réalisé dans le cadre du cours de Flutter de M. Lub lorry Lamysere, Département de Sciences Informatiques.
 
-A new Flutter project.
+Présentation
+TaskFlow est une application mobile de gestion de tâches développée par trois étudiants en Sciences Informatiques. L'application propose une navigation simple à trois onglets : un accueil pour visualiser les tâches du jour, un profil pour personnaliser l'expérience, et une page de statistiques pour suivre sa productivité.
 
-## Getting Started
+L'équipe
+Gregory CLEDANOR – Architecture et gestion des données (Hive, Provider)
 
-This project is a starting point for a Flutter application.
+Fredy Fendy PONTURAT – Interface utilisateur et expérience visuelle
 
-A few resources to get you started if this is your first Flutter project:
+Jonathan GEORGES – Logique métier et fonctionnalités interactives
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Contexte pédagogique
+Ce projet a été développé sous la supervision de M. Lub lorry Lamysere dans le cadre de son cours Flutter. L'objectif était de mettre en pratique les concepts abordés en cours : développement d'interfaces réactives, gestion d'état, persistance des données, et architecture d'applications mobiles.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Choix techniques
+Framework : Flutter (Dart)
+
+Stockage local : Hive (données utilisateur chiffrées)
+
+Gestion d'état : Provider
+
+Architecture : Modèles isolés, écrans séparés, widgets réutilisables
+
+Difficultés rencontrées
+La synchronisation entre l'état de l'application et l'affichage a été notre principal défi technique. Les tests sur différents appareils ont également révélé des bugs que nous n'avions pas anticipés. Enfin, la coordination à trois nous a appris à organiser efficacement le travail en équipe.
+
+Apports du projet
+Au-delà des compétences techniques, ce projet nous a confrontés aux réalités du développement en équipe : communication, compromis, rigueur collective. Les exigences de M. Lamysere nous ont poussés à soigner notre code et à respecter les bonnes pratiques.
