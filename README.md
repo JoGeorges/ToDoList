@@ -28,3 +28,7 @@ La synchronisation entre l'état de l'application et l'affichage a été notre p
 
 Apports du projet
 Au-delà des compétences techniques, ce projet nous a confrontés aux réalités du développement en équipe : communication, compromis, rigueur collective. Les exigences de M. Lamysere nous ont poussés à soigner notre code et à respecter les bonnes pratiques.
+
+
+Google Drive: 
+https://drive.google.com/drive/folders/1pA0siaqc6TONB4ASUM_IQi7QDQM-_iZH
